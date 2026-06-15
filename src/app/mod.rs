@@ -1,5 +1,3 @@
-#[cfg(target_arch = "wasm32")]
-use std::fmt::UpperHex;
 use std::sync::Arc;
 
 use log::{info, warn};
@@ -8,12 +6,15 @@ use winit::event_loop::EventLoop;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use winit::{application::ApplicationHandler, event::{KeyEvent, WindowEvent}, event_loop::{ActiveEventLoop, OwnedDisplayHandle}, keyboard::{KeyCode, PhysicalKey}, window::Window};
+use winit::{application::ApplicationHandler, event::{DeviceEvent, ElementState, KeyEvent, MouseButton, WindowEvent}, event_loop::{ActiveEventLoop, OwnedDisplayHandle}, keyboard::{KeyCode, PhysicalKey}, window::Window};
 
-use crate::renderer::{Renderer, texture::Texture};
+use crate::{app::camera_controller::CameraController, renderer::{Renderer, texture::Texture}};
+
+mod camera_controller;
 
 pub struct State {
     renderer: Renderer,
+    camera_controller: CameraController,
     is_surface_configured: bool,
     window: Arc<Window>,
 }
@@ -93,6 +94,7 @@ impl State {
                
         Ok(Self {
             renderer: Renderer::new(surface, device, queue, config, egui_renderer, egui_state),
+            camera_controller: CameraController::new(0.05, 0.016),
             is_surface_configured: true, // Buttily needed for x11
             window,
         })
@@ -110,7 +112,10 @@ impl State {
         }
     }
 
-    fn update(&mut self) {}
+    fn update(&mut self) {
+        self.camera_controller.update_camera(&mut self.renderer.camera);
+        self.renderer.update_camera();
+    }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
         self.window.request_redraw();
@@ -122,11 +127,20 @@ impl State {
         self.renderer.render(self.window.clone())
     }
 
-    fn handle_key(&self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
-        match (code, is_pressed) {
-            (KeyCode::Escape, true) => event_loop.exit(),
-            _ => {}
+    fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
+        if code == KeyCode::Escape && is_pressed {
+            event_loop.exit();
+        } else {
+            self.camera_controller.handle_key(code, is_pressed);
         }
+    }
+
+    fn handle_click(&mut self, _event_loop: &ActiveEventLoop, element_state: ElementState, button: MouseButton) {
+        self.camera_controller.handle_click(element_state, button, self.window.clone());
+    }
+
+    fn handle_mouse_motion(&mut self, delta: (f64, f64)) {
+        self.camera_controller.handle_mouse_motion(delta);
     }
 }
 
@@ -204,25 +218,48 @@ impl ApplicationHandler<State> for App {
         self.state = Some(event);
     }
 
+    fn device_event(
+            &mut self,
+            _event_loop: &ActiveEventLoop,
+            _device_id: winit::event::DeviceId,
+            event: DeviceEvent,
+        ) {
+        
+        let astate = match &mut self.state {
+            Some(canvas) => canvas,
+            None => return,
+        };
+
+        match event {
+            DeviceEvent::MouseMotion { delta } => {
+                astate.handle_mouse_motion(delta);
+            }
+            _ => {}
+        }
+    }
+    
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
         _window_id: winit::window::WindowId,
         event: WindowEvent
     ) {
-        let state = match &mut self.state {
+        let astate = match &mut self.state {
             Some(canvas) => canvas,
             None => return,
         };
 
-        let _ = state.renderer.egui_state.on_window_event(&state.window, &event);
-
+        // Egui can have it whole
+        if astate.renderer.egui_state.on_window_event(&astate.window, &event).consumed {
+            return;
+        }
+        
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => state.resize(size.width, size.height),
+            WindowEvent::Resized(size) => astate.resize(size.width, size.height),
             WindowEvent::RedrawRequested => {
-                state.update();
-                match state.render() {
+                astate.update();
+                match astate.render() {
                     Ok(_) => {},
                     Err(e) => {
                         log::error!("{e}");
@@ -238,7 +275,10 @@ impl ApplicationHandler<State> for App {
                         ..
                     },
                 ..
-            } => state.handle_key(event_loop, code, key_state.is_pressed()),
+            } => astate.handle_key(event_loop, code, key_state.is_pressed()),
+            WindowEvent::MouseInput { state, button, .. } => {
+                astate.handle_click(event_loop, state, button);
+            }
             _ => {}
         }
     }

@@ -301,4 +301,16 @@ impl Renderer {
 
         Ok(())
     }
+
+    pub fn update_camera(&mut self) {
+        self.camera_uniform.view_proj = self
+            .camera
+            .view_projection_matrix_single(self.config.width as f64 / self.config.height as f64)
+            .to_cols_array();
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
+    }
 }
