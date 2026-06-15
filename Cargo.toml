@@ -2,7 +2,7 @@
 name = "butt-gravity-2"
 description = "A 3D orbital systems visualizer"
 repository = "https://github.com/illegitimate-egg/butt-gravity-2"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 version = "0.1.0"
 authors = ["Cameron Peck <cameron@humaneyestudio.co.uk>"]
 edition = "2024"
