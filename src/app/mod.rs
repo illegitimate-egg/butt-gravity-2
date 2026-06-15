@@ -95,7 +95,7 @@ impl State {
                
         Ok(Self {
             renderer: Renderer::new(surface, device, queue, config, egui_renderer, egui_state),
-            camera_controller: CameraController::new(0.05, 0.016),
+            camera_controller: CameraController::new(0.05, 0.010),
             is_surface_configured: true, // Buttily needed for x11
             window,
         })

@@ -4,12 +4,14 @@ use wgpu::util::DeviceExt;
 
 use crate::renderer::{
     camera::{Camera, CameraUniform},
+    pipelines::{grid_pipeline::GridPipeline, Pipeline},
+    render_passes::{grid_pass::GridPass, RenderPass},
     texture::Texture,
 };
 
 pub mod camera;
-mod pipeline;
-mod render_pass;
+mod pipelines;
+mod render_passes;
 pub mod texture;
 
 pub struct Renderer {
@@ -87,59 +89,10 @@ impl Renderer {
         });
 
         // Build pipelines
-        // grid_pipeline
-        let grid_shader = device.create_shader_module(wgpu::include_wgsl!("../shaders/grid.wgsl"));
-
-        let grid_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Grid Pipeline Layout"),
-            bind_group_layouts: &[Some(&camera_bind_group_layout)],
-            immediate_size: 0,
-        });
-
-        let grid_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Grid Pipeline"),
-            layout: Some(&grid_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &grid_shader,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &grid_shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                // cull_mode: Some(wgpu::Face::Back),
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: texture::Texture::DEPTH_FORMAT,
-                depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Less),
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview_mask: None,
-            cache: None,
-        });
+        let grid_pipeline = GridPipeline {
+            camera_bind_group_layout,
+        }
+        .create_pipeline(&device, &config);
 
         Renderer {
             surface,
@@ -188,41 +141,11 @@ impl Renderer {
                 label: Some("Render Encoder"),
             });
 
-        {
-            let mut grid_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Grid Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    depth_slice: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 17f64 / 256f64,
-                            g: 76f64 / 256f64,
-                            b: 87f64 / 256f64,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-                multiview_mask: None,
-            });
-
-            grid_pass.set_pipeline(&self.grid_pipeline);
-            grid_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-
-            grid_pass.draw(0..3, 0..1);
+        GridPass {
+            camera_bind_group: &self.camera_bind_group,
+            depth_texture_view: &self.depth_texture.view,
         }
+        .render_pass(&mut encoder, &view, &self.grid_pipeline);
 
         {
             // Whole egui loop right here
