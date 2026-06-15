@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use egui_wgpu::ScreenDescriptor;
 use glam::{DQuat, DVec3};
 use wgpu::util::DeviceExt;

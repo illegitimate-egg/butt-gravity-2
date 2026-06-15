@@ -2,6 +2,7 @@
 use std::fmt::UpperHex;
 use std::sync::Arc;
 
+use log::{info, warn};
 #[cfg(target_arch = "wasm32")]
 use winit::event_loop::EventLoop;
 #[cfg(target_arch = "wasm32")]
@@ -23,7 +24,7 @@ impl State {
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             #[cfg(not(target_arch = "wasm32"))]
-            backends: wgpu::Backends::Primary,
+            backends: wgpu::Backends::all(),
             #[cfg(target_arch = "wasm32")]
             backends: wgpu::Backends::GL,
             flags: Default::default(),
@@ -42,6 +43,14 @@ impl State {
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
         }).await?;
+
+        let adapter_info = adapter.get_info();
+        
+        info!("Adapter info:");
+        info!("Adapter: {} [{}] using {}", adapter_info.name, adapter_info.backend, adapter_info.driver);
+        if adapter_info.backend == wgpu::Backend::Gl {
+            warn!("You are using GL. GL support is very flakey. You have been warned. Capricious is the zephyr of a secondary target.");
+        }
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
