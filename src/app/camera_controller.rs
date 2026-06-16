@@ -1,5 +1,5 @@
 use core::f64;
-use std::{fmt::Debug, sync::Arc};
+use std::sync::Arc;
 
 use glam::{DQuat, DVec3};
 use winit::{
@@ -102,24 +102,11 @@ impl CameraController {
         let yaw_angle = self.delta.0 * self.sensitivity;
         let pitch_angle = self.delta.1 * self.sensitivity;
 
-        // let q_yaw = DQuat::from_axis_angle(DVec3::Y, yaw_angle);
-        // let q_pitch = DQuat::from_axis_angle(DVec3::X, pitch_angle);
+        let q_yaw = DQuat::from_axis_angle(DVec3::Y, -yaw_angle);
+        let q_pitch = DQuat::from_axis_angle(DVec3::X, -pitch_angle);
 
-        // camera.orientation = (q_yaw * q_pitch * camera.orientation).normalize();
+        camera.orientation = (q_yaw * camera.orientation * q_pitch).normalize();
 
-        // X+, PITCH
-        // Y+, YAW
-        // Z+, ROLL
-        let mut euler_camera = camera.orientation.to_euler(glam::EulerRot::XYZ);
-        euler_camera.0 += pitch_angle;
-        euler_camera.1 += yaw_angle;
-
-        camera.orientation = DQuat::from_euler(
-            glam::EulerRot::XYZ,
-            euler_camera.0,
-            euler_camera.1,
-            euler_camera.2,
-        );
         self.delta = (0.0, 0.0);
     }
 }

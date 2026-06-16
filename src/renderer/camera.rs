@@ -3,7 +3,7 @@ use glam::{DMat4, DQuat, DVec3, Mat4};
 pub struct Camera {
     pub position: DVec3,
 
-    /// Camera -> za warld orientation
+    /// Za warld orientation
     pub orientation: DQuat,
 
     /// Fov of y axis in radians
@@ -15,24 +15,21 @@ pub struct Camera {
 
 impl Camera {
     pub fn forward(&self) -> DVec3 {
-        let world_mat = DMat4::from_quat(self.orientation).inverse();
-        world_mat.transform_vector3(-DVec3::Z)
+        DMat4::from_quat(self.orientation).transform_vector3(-DVec3::Z)
     }
 
     pub fn right(&self) -> DVec3 {
-        let world_mat = DMat4::from_quat(self.orientation).inverse();
-        world_mat.transform_vector3(DVec3::X)
+        DMat4::from_quat(self.orientation).transform_vector3(DVec3::X)
     }
 
     pub fn up(&self) -> DVec3 {
-        let world_mat = DMat4::from_quat(self.orientation).inverse();
-        world_mat.transform_vector3(DVec3::Y)
+        DMat4::from_quat(self.orientation).transform_vector3(DVec3::Y)
     }
 
     pub fn view_matrix(&self) -> DMat4 {
-        let rotation = DMat4::from_quat(self.orientation);
-        let translation = DMat4::from_translation(-self.position);
-        rotation * translation
+        let view_rotation = self.orientation.conjugate();
+        let view_translation = view_rotation * -self.position;
+        DMat4::from_rotation_translation(view_rotation, view_translation)
     }
 
     pub fn projection_matrix(&self, aspect_ratio: f64) -> DMat4 {
