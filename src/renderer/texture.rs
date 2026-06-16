@@ -11,6 +11,7 @@ impl Texture {
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
         label: &str,
+        msaa_samples: u32,
     ) -> Self {
         let size = wgpu::Extent3d {
             width: config.width.max(1),
@@ -21,7 +22,7 @@ impl Texture {
             label: Some(label),
             size,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: msaa_samples,
             dimension: wgpu::TextureDimension::D2,
             format: Self::DEPTH_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -49,4 +50,30 @@ impl Texture {
             sampler,
         }
     }
+}
+
+pub fn create_msaa(
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    label: &str,
+    msaa_samples: u32,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let msaa_texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width: config.width,
+            height: config.height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: msaa_samples,
+        dimension: wgpu::TextureDimension::D2,
+        format: config.format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    });
+
+    let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+    (msaa_texture, msaa_view)
 }

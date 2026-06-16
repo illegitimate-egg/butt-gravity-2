@@ -7,6 +7,7 @@ pub trait RenderPass {
         &self,
         encoder: &mut CommandEncoder,
         view: &TextureView,
+        resolve_target: Option<&TextureView>,
         pipeline: &RenderPipeline,
     );
 }

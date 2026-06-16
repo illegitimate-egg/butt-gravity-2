@@ -33,6 +33,10 @@ impl Camera {
         DMat4::from_rotation_translation(view_rotation, view_translation)
     }
 
+    pub fn view_matrix_single(&self) -> Mat4 {
+        self.view_matrix().as_mat4()
+    }
+
     pub fn projection_matrix(&self, aspect_ratio: f64) -> DMat4 {
         DMat4::perspective_rh(self.fov_y, aspect_ratio, self.near_plane, self.far_plane)
     }
@@ -59,5 +63,6 @@ impl Camera {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
+    pub view: [f32; 16],
     pub view_proj: [f32; 16],
 }

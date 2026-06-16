@@ -12,19 +12,20 @@ impl RenderPass for GridPass<'_> {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
+        resolve_target: Option<&TextureView>,
         pipeline: &wgpu::RenderPipeline,
     ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Grid Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view,
-                resolve_target: None,
+                resolve_target,
                 depth_slice: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 20f64 / 256f64,
-                        g: 17f64 / 256f64,
-                        b: 17f64 / 256f64,
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
                         a: 1.0,
                     }),
                     store: wgpu::StoreOp::Store,

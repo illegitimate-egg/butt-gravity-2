@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 
 use winit::{application::ApplicationHandler, event::{DeviceEvent, ElementState, KeyEvent, MouseButton, WindowEvent}, event_loop::{ActiveEventLoop, OwnedDisplayHandle}, keyboard::{KeyCode, PhysicalKey}, window::Window};
 
-use crate::{app::camera_controller::CameraController, renderer::{Renderer, texture::Texture}};
+use crate::{app::camera_controller::CameraController, renderer::Renderer};
 
 mod camera_controller;
 
@@ -108,7 +108,7 @@ impl State {
             self.renderer.config.width = width.min(max);
             self.renderer.config.height = height.min(max);
             self.renderer.surface.configure(&self.renderer.device, &self.renderer.config);
-            self.renderer.depth_texture = Texture::create_depth_texture(&self.renderer.device, &self.renderer.config, "depth_texture");
+            self.renderer.resize();
             self.is_surface_configured = true;
         }
     }

@@ -2,19 +2,22 @@ use std::time::Instant;
 
 use egui_wgpu::ScreenDescriptor;
 use glam::DQuat;
+use log::info;
 use wgpu::util::DeviceExt;
 
 use crate::renderer::{
     camera::{Camera, CameraUniform},
     pipelines::{grid_pipeline::GridPipeline, Pipeline},
     render_passes::{grid_pass::GridPass, RenderPass},
-    texture::Texture,
+    texture::{create_msaa, Texture},
 };
 
 pub mod camera;
 mod pipelines;
 mod render_passes;
 pub mod texture;
+
+const MSAA_SAMPLES: u32 = 4;
 
 pub struct Renderer {
     pub surface: wgpu::Surface<'static>,
@@ -31,7 +34,9 @@ pub struct Renderer {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
 
-    pub depth_texture: Texture,
+    depth_texture: Texture,
+    msaa_texture: wgpu::Texture,
+    msaa_view: wgpu::TextureView,
 
     grid_pipeline: wgpu::RenderPipeline,
     // line_pipeline: wgpu::RenderPipeline,
@@ -48,14 +53,18 @@ impl Renderer {
         egui_renderer: egui_wgpu::Renderer,
         egui_state: egui_winit::State,
     ) -> Renderer {
-        let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
+        info!("Using {}x MSAA", MSAA_SAMPLES);
+
+        let depth_texture =
+            Texture::create_depth_texture(&device, &config, "depth_texture", MSAA_SAMPLES);
+        let (msaa_texture, msaa_view) = create_msaa(&device, &config, "msaa_color", MSAA_SAMPLES);
 
         let last_frame_instant = Instant::now();
         let last_frame_time = 0.0;
         let delta_time = 0.0;
 
         let camera = Camera {
-            position: (0.0, 0.0, 1.0).into(),
+            position: (0.0, 1.0, 0.0).into(),
             orientation: DQuat::IDENTITY,
             fov_y: 90.0_f64.to_radians(),
             near_plane: 0.1,
@@ -63,13 +72,14 @@ impl Renderer {
         };
 
         let camera_uniform = CameraUniform {
+            view: camera.view_matrix_single().to_cols_array(),
             view_proj: camera
                 .view_projection_matrix_single(config.width as f64 / config.height as f64)
                 .to_cols_array(),
         };
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera VP Buffer"),
+            label: Some("Camera V VP Buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -117,10 +127,23 @@ impl Renderer {
             camera_buffer,
             camera_bind_group,
             depth_texture,
+            msaa_texture,
+            msaa_view,
             grid_pipeline,
             egui_renderer,
             egui_state,
         }
+    }
+
+    pub fn resize(&mut self) {
+        self.depth_texture = Texture::create_depth_texture(
+            &self.device,
+            &self.config,
+            "depth_texture",
+            MSAA_SAMPLES,
+        );
+        (self.msaa_texture, self.msaa_view) =
+            create_msaa(&self.device, &self.config, "msaa_color", MSAA_SAMPLES);
     }
 
     pub fn render(&mut self, window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<()> {
@@ -163,7 +186,12 @@ impl Renderer {
             camera_bind_group: &self.camera_bind_group,
             depth_texture_view: &self.depth_texture.view,
         }
-        .render_pass(&mut encoder, &view, &self.grid_pipeline);
+        .render_pass(
+            &mut encoder,
+            &self.msaa_view,
+            Some(&view),
+            &self.grid_pipeline,
+        );
 
         {
             // Whole egui loop right here
@@ -269,6 +297,7 @@ impl Renderer {
     }
 
     pub fn update_camera(&mut self) {
+        self.camera_uniform.view = self.camera.view_matrix_single().to_cols_array();
         self.camera_uniform.view_proj = self
             .camera
             .view_projection_matrix_single(self.config.width as f64 / self.config.height as f64)
