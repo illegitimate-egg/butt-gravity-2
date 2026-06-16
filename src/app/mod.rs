@@ -36,7 +36,7 @@ impl State {
             display: Some(display_handle),
         });
 
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance.create_surface(window.clone())?;
 
         let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
             // dgpu so we can suckle down all the coulombs

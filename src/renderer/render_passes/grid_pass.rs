@@ -22,9 +22,9 @@ impl RenderPass for GridPass<'_> {
                 depth_slice: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 17f64 / 256f64,
-                        g: 76f64 / 256f64,
-                        b: 87f64 / 256f64,
+                        r: 20f64 / 256f64,
+                        g: 17f64 / 256f64,
+                        b: 17f64 / 256f64,
                         a: 1.0,
                     }),
                     store: wgpu::StoreOp::Store,
@@ -46,6 +46,6 @@ impl RenderPass for GridPass<'_> {
         pass.set_pipeline(pipeline);
         pass.set_bind_group(0, self.camera_bind_group, &[]);
 
-        pass.draw(0..3, 0..1);
+        pass.draw(0..6, 0..1);
     }
 }

@@ -3,7 +3,8 @@ use glam::{DMat4, DQuat, DVec3, Mat4};
 pub struct Camera {
     pub position: DVec3,
 
-    /// Za warld orientation
+    // Za warldo
+    /// Orientation in world space
     pub orientation: DQuat,
 
     /// Fov of y axis in radians

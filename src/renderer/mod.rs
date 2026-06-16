@@ -1,5 +1,7 @@
+use std::time::Instant;
+
 use egui_wgpu::ScreenDescriptor;
-use glam::{DQuat, DVec3};
+use glam::DQuat;
 use wgpu::util::DeviceExt;
 
 use crate::renderer::{
@@ -19,6 +21,10 @@ pub struct Renderer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
+
+    pub last_frame_instant: Instant,
+    pub last_frame_time: f32,
+    pub delta_time: f32,
 
     pub camera: Camera,
     camera_uniform: CameraUniform,
@@ -43,6 +49,10 @@ impl Renderer {
         egui_state: egui_winit::State,
     ) -> Renderer {
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
+
+        let last_frame_instant = Instant::now();
+        let last_frame_time = 0.0;
+        let delta_time = 0.0;
 
         let camera = Camera {
             position: (0.0, 0.0, 1.0).into(),
@@ -99,6 +109,9 @@ impl Renderer {
             device,
             queue,
             config,
+            last_frame_instant,
+            last_frame_time,
+            delta_time,
             camera,
             camera_uniform,
             camera_buffer,
@@ -111,6 +124,11 @@ impl Renderer {
     }
 
     pub fn render(&mut self, window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<()> {
+        self.delta_time = Instant::now()
+            .duration_since(self.last_frame_instant)
+            .as_secs_f32();
+        self.last_frame_instant = Instant::now();
+
         let output = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(surface_texture) => surface_texture,
             wgpu::CurrentSurfaceTexture::Suboptimal(surface_texture) => {
@@ -158,6 +176,12 @@ impl Renderer {
                 .resizable(true)
                 .vscroll(true)
                 .show(self.egui_state.egui_ctx(), |ui| {
+                    ui.label(format!(
+                        "Delta Time: {}   Frame Time: {}   FPS: {}",
+                        self.delta_time,
+                        self.last_frame_time,
+                        self.delta_time.recip()
+                    ));
                     ui.label("Position (XYZ)");
                     ui.columns(3, |ui| {
                         ui[0].add(egui::DragValue::new(&mut self.camera.position.x));
@@ -236,6 +260,10 @@ impl Renderer {
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
+
+        self.last_frame_time = Instant::now()
+            .duration_since(self.last_frame_instant)
+            .as_secs_f32();
 
         Ok(())
     }
