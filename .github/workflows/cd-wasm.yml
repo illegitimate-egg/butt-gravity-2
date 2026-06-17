@@ -1,0 +1,59 @@
+name: Deploy wasm build (Commit level)
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+        
+    - name: Cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install wasm-pack
+      run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+    - name: WASM Build
+      run: wasm-pack build --target web --release --no-typescript
+
+    - name: Prepare output directory
+      run: mkdir -p web-out/
+
+    - name: Copy static assets
+      run: cp index.html web-out
+
+    - name: Copy built assets
+      run: |
+        cp pkg/ -r web-out/pkg/
+        ls -lah web-out
+        ls -lah web-out/pkg
+
+    - name: Remove gitignore
+      run: |
+        rm -f web-out/pkg/.gitignore
+        ls -lah web-out
+        ls -lah web-out/pkg
+
+    - name: Deploy to GH Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./web-out
+        publish_branch: gh-pages
+        force_orphan: true
