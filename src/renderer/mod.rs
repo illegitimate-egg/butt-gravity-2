@@ -24,6 +24,7 @@ mod pipelines;
 mod render_passes;
 pub mod texture;
 
+// Should be either 1 or 4
 const MSAA_SAMPLES: u32 = 4;
 
 pub fn get_msaa_samples(device: &wgpu::Device) -> u32 {
@@ -231,7 +232,7 @@ impl Renderer {
         );
     }
 
-    pub fn render(&mut self, window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<()> {
+    pub fn render(&mut self, window: &std::sync::Arc<winit::window::Window>) -> anyhow::Result<()> {
         self.delta_time = Instant::now()
             .duration_since(self.last_frame_instant)
             .as_secs_f32();
@@ -287,7 +288,7 @@ impl Renderer {
         {
             // Whole egui loop right here
             // Pre-ui
-            let raw_input = self.egui_state.take_egui_input(&window);
+            let raw_input = self.egui_state.take_egui_input(window);
             self.egui_state.egui_ctx().begin_pass(raw_input);
 
             // Ui
@@ -332,7 +333,7 @@ impl Renderer {
             };
 
             self.egui_state
-                .handle_platform_output(&window, full_output.platform_output);
+                .handle_platform_output(window, full_output.platform_output);
 
             let tris = self.egui_state.egui_ctx().tessellate(
                 full_output.shapes,

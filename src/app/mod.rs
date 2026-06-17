@@ -1,3 +1,4 @@
+use core::time;
 use std::sync::Arc;
 
 use log::{info, warn};
@@ -18,6 +19,7 @@ pub const CANVAS_ID: &str = "canvas";
 pub struct State {
     renderer: Renderer,
     camera_controller: CameraController,
+    pending_resize: Option<(u32, u32)>,
     is_surface_configured: bool,
     window: Arc<Window>,
 }
@@ -102,6 +104,7 @@ impl State {
         Ok(Self {
             renderer: Renderer::new(surface, device, queue, config, egui_renderer, egui_state),
             camera_controller: CameraController::new(0.05, 0.002),
+            pending_resize: None,
             #[cfg(not(target_arch = "wasm32"))]
             is_surface_configured: true, // Buttily needed for x11
             #[cfg(target_arch = "wasm32")]
@@ -124,12 +127,12 @@ impl State {
 
     pub fn render(&mut self) -> anyhow::Result<()> {
         self.window.request_redraw();
-
+        
         if !self.is_surface_configured {
             return Ok(());
         }
 
-        self.renderer.render(self.window.clone())
+        self.renderer.render(&self.window)
     }
 
     fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
@@ -260,8 +263,18 @@ impl ApplicationHandler<State> for App {
         
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => astate.resize(size.width, size.height),
+            WindowEvent::Resized(size) => {
+                // Firefox WebGPU stalls to shit if we don't defer this to be
+                // synced with the redraw requests
+                // I guess it's not too bad for other candidates
+                astate.pending_resize = Some((size.width, size.height));
+            },
             WindowEvent::RedrawRequested => {
+                if let Some(size) = astate.pending_resize {
+                    astate.resize(size.0, size.1);
+                    astate.pending_resize = None;
+                }
+                
                 astate.update();
                 match astate.render() {
                     Ok(_) => {},
