@@ -9,6 +9,9 @@ use log::info;
 use wgpu::Backend;
 use wgpu::{util::DeviceExt, TextureView};
 
+#[cfg(target_arch = "wasm32")]
+use crate::app::CANVAS_ID;
+
 use crate::renderer::{
     camera::{Camera, CameraUniform},
     pipelines::{grid_pipeline::GridPipeline, Pipeline},
@@ -50,6 +53,8 @@ pub struct Renderer {
     msaa_texture: wgpu::Texture,
     msaa_view: wgpu::TextureView,
 
+    max_view_dimensions: (u32, u32),
+
     grid_pipeline: wgpu::RenderPipeline,
     // line_pipeline: wgpu::RenderPipeline,
     pub egui_renderer: egui_wgpu::Renderer,
@@ -65,6 +70,53 @@ impl Renderer {
         egui_renderer: egui_wgpu::Renderer,
         egui_state: egui_winit::State,
     ) -> Renderer {
+        #[cfg(not(target_arch = "wasm32"))]
+        let max_view_dimensions = (
+            device.limits().max_texture_dimension_2d,
+            device.limits().max_texture_dimension_2d,
+        );
+        #[cfg(target_arch = "wasm32")]
+        let max_view_dimensions: (u32, u32) = if device.adapter_info().backend == Backend::Gl {
+            use wasm_bindgen::prelude::*;
+            use wasm_bindgen::JsCast;
+
+            let window = wgpu::web_sys::window().unwrap_throw();
+            let document = window.document().unwrap_throw();
+            let canvas = document.get_element_by_id(CANVAS_ID).unwrap_throw();
+            let html_canvas_element: web_sys::HtmlCanvasElement = canvas.unchecked_into();
+
+            // Minimum guaranteed by spec
+            let mut max_width: u32 = 2048;
+            let mut max_height: u32 = 2048;
+
+            if let Some(context_obj) = html_canvas_element.get_context("webgl2").unwrap_throw() {
+                let gl: wgpu::web_sys::WebGl2RenderingContext = context_obj.unchecked_into();
+
+                if let Ok(dims_val) =
+                    gl.get_parameter(web_sys::WebGl2RenderingContext::MAX_VIEWPORT_DIMS)
+                {
+                    if let Some(array) = dims_val.dyn_ref::<js_sys::Int32Array>() {
+                        let mut max_dims = [0i32; 2];
+                        array.copy_to(&mut max_dims);
+
+                        max_width = max_dims[0] as u32;
+                        max_height = max_dims[1] as u32;
+                    }
+                }
+            }
+            (max_width, max_height)
+        } else {
+            (
+                device.limits().max_texture_dimension_2d,
+                device.limits().max_texture_dimension_2d,
+            )
+        };
+
+        info!(
+            "Maximum size {}x{}",
+            max_view_dimensions.0, max_view_dimensions.1
+        );
+
         let samples = get_msaa_samples(&device);
 
         if samples == 1 {
@@ -152,13 +204,19 @@ impl Renderer {
             depth_texture,
             msaa_texture,
             msaa_view,
+            max_view_dimensions,
             grid_pipeline,
             egui_renderer,
             egui_state,
         }
     }
 
-    pub fn resize(&mut self) {
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.config.width = width.min(self.max_view_dimensions.0);
+        self.config.height = height.min(self.max_view_dimensions.1);
+
+        self.surface.configure(&self.device, &self.config);
+
         self.depth_texture = Texture::create_depth_texture(
             &self.device,
             &self.config,

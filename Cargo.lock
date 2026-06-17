@@ -248,6 +248,7 @@ dependencies = [
  "egui-winit",
  "env_logger",
  "glam",
+ "js-sys",
  "log",
  "pollster",
  "wasm-bindgen",

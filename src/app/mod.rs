@@ -12,6 +12,9 @@ use crate::{app::camera_controller::CameraController, renderer::Renderer};
 
 mod camera_controller;
 
+#[cfg(target_arch = "wasm32")]
+pub const CANVAS_ID: &str = "canvas";
+
 pub struct State {
     renderer: Renderer,
     camera_controller: CameraController,
@@ -61,10 +64,10 @@ impl State {
                 required_features: wgpu::Features::empty(),
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 // Wasm is such a pain in the arse, it does't support all of wgpu's features so we have to knock some off
-                required_limits: if cfg!(target_arch = "wasm32") {
+                required_limits: if cfg!(target_arch = "wasm32") && adapter_info.backend == wgpu::Backend::Gl {
                     wgpu::Limits::downlevel_webgl2_defaults()
                 } else {
-                    wgpu::Limits::default()
+                    wgpu::Limits::defaults().using_resolution(adapter.limits())
                 },
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
@@ -109,12 +112,7 @@ impl State {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
-            // More WebGL bs
-            let max = 2048;
-            self.renderer.config.width = width.min(max);
-            self.renderer.config.height = height.min(max);
-            self.renderer.surface.configure(&self.renderer.device, &self.renderer.config);
-            self.renderer.resize();
+            self.renderer.resize(width, height);
             self.is_surface_configured = true;
         }
     }
@@ -179,12 +177,11 @@ impl ApplicationHandler<State> for App {
             use wasm_bindgen::JsCast;
             use winit::platform::web::WindowAttributesExtWebSys;
 
-            const CANVAS_ID: &str = "canvas";
-
             let window = wgpu::web_sys::window().unwrap_throw();
             let document = window.document().unwrap_throw();
             let canvas = document.get_element_by_id(CANVAS_ID).unwrap_throw();
             let html_canvas_element = canvas.unchecked_into();
+
             window_attributes = window_attributes.with_canvas(Some(html_canvas_element));
         }
 
