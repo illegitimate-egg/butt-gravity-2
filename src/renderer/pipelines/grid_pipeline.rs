@@ -1,4 +1,4 @@
-use crate::renderer::MSAA_SAMPLES;
+use crate::renderer::get_msaa_samples;
 use wgpu::BindGroupLayout;
 
 use crate::renderer::{pipelines::Pipeline, texture};
@@ -57,7 +57,7 @@ impl Pipeline for GridPipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: MSAA_SAMPLES,
+                count: get_msaa_samples(device),
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },

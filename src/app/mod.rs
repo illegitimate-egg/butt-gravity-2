@@ -27,7 +27,7 @@ impl State {
             #[cfg(not(target_arch = "wasm32"))]
             backends: wgpu::Backends::all(),
             #[cfg(target_arch = "wasm32")]
-            backends: wgpu::Backends::GL,
+            backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
             flags: Default::default(),
             memory_budget_thresholds: Default::default(),
             backend_options: Default::default(),
@@ -51,6 +51,8 @@ impl State {
         info!("Adapter: {} [{}] using {}", adapter_info.name, adapter_info.backend, adapter_info.driver);
         if adapter_info.backend == wgpu::Backend::Gl {
             warn!("You are using GL. GL support is very flakey. You have been warned. Capricious is the zephyr of a secondary target.");
+        } else if adapter_info.backend == wgpu::Backend::BrowserWebGpu {
+            info!("You are using WebGPU!");
         }
 
         let (device, queue) = adapter
@@ -91,12 +93,16 @@ impl State {
         let egui_renderer = egui_wgpu::Renderer::new(&device, surface_format, egui_wgpu::RendererOptions { ..Default::default() });
 
         // Force the initial surface creation to bind immediately to the active X11 window tree
+        #[cfg(not(target_arch = "wasm32"))]
         surface.configure(&device, &config);
                
         Ok(Self {
             renderer: Renderer::new(surface, device, queue, config, egui_renderer, egui_state),
             camera_controller: CameraController::new(0.05, 0.002),
+            #[cfg(not(target_arch = "wasm32"))]
             is_surface_configured: true, // Buttily needed for x11
+            #[cfg(target_arch = "wasm32")]
+            is_surface_configured: false,
             window,
         })
     }

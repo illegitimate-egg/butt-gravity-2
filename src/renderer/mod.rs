@@ -6,6 +6,7 @@ use web_time::Instant;
 use egui_wgpu::ScreenDescriptor;
 use glam::DQuat;
 use log::info;
+use wgpu::Backend;
 use wgpu::{util::DeviceExt, TextureView};
 
 use crate::renderer::{
@@ -20,10 +21,15 @@ mod pipelines;
 mod render_passes;
 pub mod texture;
 
-#[cfg(not(target_arch = "wasm32"))]
 const MSAA_SAMPLES: u32 = 4;
-#[cfg(target_arch = "wasm32")]
-const MSAA_SAMPLES: u32 = 1;
+
+pub fn get_msaa_samples(device: &wgpu::Device) -> u32 {
+    if device.adapter_info().backend == Backend::Gl {
+        1
+    } else {
+        MSAA_SAMPLES
+    }
+}
 
 pub struct Renderer {
     pub surface: wgpu::Surface<'static>,
@@ -41,9 +47,7 @@ pub struct Renderer {
     camera_bind_group: wgpu::BindGroup,
 
     depth_texture: Texture,
-    #[cfg(not(target_arch = "wasm32"))]
     msaa_texture: wgpu::Texture,
-    #[cfg(not(target_arch = "wasm32"))]
     msaa_view: wgpu::TextureView,
 
     grid_pipeline: wgpu::RenderPipeline,
@@ -61,12 +65,22 @@ impl Renderer {
         egui_renderer: egui_wgpu::Renderer,
         egui_state: egui_winit::State,
     ) -> Renderer {
-        info!("Using {}x MSAA", MSAA_SAMPLES);
+        let samples = get_msaa_samples(&device);
 
-        let depth_texture =
-            Texture::create_depth_texture(&device, &config, "depth_texture", MSAA_SAMPLES);
-        #[cfg(not(target_arch = "wasm32"))]
-        let (msaa_texture, msaa_view) = create_msaa(&device, &config, "msaa_color", MSAA_SAMPLES);
+        if samples == 1 {
+            info!("MSAA Disabled");
+        } else {
+            info!("Using {}x MSAA", samples);
+        }
+
+        let depth_texture = Texture::create_depth_texture(
+            &device,
+            &config,
+            "depth_texture",
+            get_msaa_samples(&device),
+        );
+        let (msaa_texture, msaa_view) =
+            create_msaa(&device, &config, "msaa_color", get_msaa_samples(&device));
 
         let last_frame_instant = Instant::now();
         let last_frame_time = 0.0;
@@ -136,9 +150,7 @@ impl Renderer {
             camera_buffer,
             camera_bind_group,
             depth_texture,
-            #[cfg(not(target_arch = "wasm32"))]
             msaa_texture,
-            #[cfg(not(target_arch = "wasm32"))]
             msaa_view,
             grid_pipeline,
             egui_renderer,
@@ -151,13 +163,14 @@ impl Renderer {
             &self.device,
             &self.config,
             "depth_texture",
-            MSAA_SAMPLES,
+            get_msaa_samples(&self.device),
         );
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            (self.msaa_texture, self.msaa_view) =
-                create_msaa(&self.device, &self.config, "msaa_color", MSAA_SAMPLES);
-        }
+        (self.msaa_texture, self.msaa_view) = create_msaa(
+            &self.device,
+            &self.config,
+            "msaa_color",
+            get_msaa_samples(&self.device),
+        );
     }
 
     pub fn render(&mut self, window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<()> {
@@ -199,16 +212,10 @@ impl Renderer {
         let use_view: &TextureView;
         let resolve_target: Option<&TextureView>;
 
-        #[cfg(not(target_arch = "wasm32"))]
-        if MSAA_SAMPLES > 1 {
+        if get_msaa_samples(&self.device) > 1 {
             use_view = &self.msaa_view;
             resolve_target = Some(&view);
         } else {
-            use_view = &view;
-            resolve_target = None;
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
             use_view = &view;
             resolve_target = None;
         }
