@@ -3,7 +3,6 @@ use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-use egui_wgpu::ScreenDescriptor;
 use glam::DQuat;
 use log::info;
 use wgpu::Backend;
@@ -12,6 +11,7 @@ use wgpu::{util::DeviceExt, TextureView};
 #[cfg(target_arch = "wasm32")]
 use crate::app::CANVAS_ID;
 
+use crate::renderer::render_passes::egui_pass::EguiPass;
 use crate::renderer::{
     camera::{Camera, CameraUniform},
     pipelines::{grid_pipeline::GridPipeline, Pipeline},
@@ -288,14 +288,18 @@ impl Renderer {
         {
             // Whole egui loop right here
             // Pre-ui
-            let raw_input = self.egui_state.take_egui_input(window);
-            self.egui_state.egui_ctx().begin_pass(raw_input);
+            let mut egui_pass = EguiPass {
+                window,
+                egui_state: &mut self.egui_state,
+                egui_renderer: &mut self.egui_renderer,
+            };
+            egui_pass.begin_ui();
 
             // Ui
             egui::Window::new("Camera information")
                 .resizable(true)
                 .vscroll(true)
-                .show(self.egui_state.egui_ctx(), |ui| {
+                .show(egui_pass.get_ctx(), |ui| {
                     ui.label(format!(
                         "Delta Time: {}   Frame Time: {}   FPS: {}",
                         self.delta_time,
@@ -325,57 +329,7 @@ impl Renderer {
                 });
 
             // Post-ui
-            let full_output = self.egui_state.egui_ctx().end_pass();
-
-            let screen_descriptor = ScreenDescriptor {
-                size_in_pixels: [self.config.width, self.config.height],
-                pixels_per_point: 1.0,
-            };
-
-            self.egui_state
-                .handle_platform_output(window, full_output.platform_output);
-
-            let tris = self.egui_state.egui_ctx().tessellate(
-                full_output.shapes,
-                self.egui_state.egui_ctx().pixels_per_point(),
-            );
-            for (id, image_delta) in &full_output.textures_delta.set {
-                self.egui_renderer
-                    .update_texture(&self.device, &self.queue, *id, image_delta);
-            }
-            self.egui_renderer.update_buffers(
-                &self.device,
-                &self.queue,
-                &mut encoder,
-                &tris,
-                &screen_descriptor,
-            );
-
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("egui main pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-                multiview_mask: None,
-            });
-
-            self.egui_renderer.render(
-                &mut render_pass.forget_lifetime(),
-                &tris,
-                &screen_descriptor,
-            );
-            for x in &full_output.textures_delta.free {
-                self.egui_renderer.free_texture(x);
-            }
+            egui_pass.end_ui(&mut encoder, &view, &self.device, &self.queue, &self.config);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

@@ -1,5 +1,6 @@
 use wgpu::{CommandEncoder, RenderPipeline, TextureView};
 
+pub mod egui_pass;
 pub mod grid_pass;
 
 pub trait RenderPass {
