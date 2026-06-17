@@ -1,9 +1,12 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 use egui_wgpu::ScreenDescriptor;
 use glam::DQuat;
 use log::info;
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, TextureView};
 
 use crate::renderer::{
     camera::{Camera, CameraUniform},
@@ -17,7 +20,10 @@ mod pipelines;
 mod render_passes;
 pub mod texture;
 
+#[cfg(not(target_arch = "wasm32"))]
 const MSAA_SAMPLES: u32 = 4;
+#[cfg(target_arch = "wasm32")]
+const MSAA_SAMPLES: u32 = 1;
 
 pub struct Renderer {
     pub surface: wgpu::Surface<'static>,
@@ -35,7 +41,9 @@ pub struct Renderer {
     camera_bind_group: wgpu::BindGroup,
 
     depth_texture: Texture,
+    #[cfg(not(target_arch = "wasm32"))]
     msaa_texture: wgpu::Texture,
+    #[cfg(not(target_arch = "wasm32"))]
     msaa_view: wgpu::TextureView,
 
     grid_pipeline: wgpu::RenderPipeline,
@@ -57,6 +65,7 @@ impl Renderer {
 
         let depth_texture =
             Texture::create_depth_texture(&device, &config, "depth_texture", MSAA_SAMPLES);
+        #[cfg(not(target_arch = "wasm32"))]
         let (msaa_texture, msaa_view) = create_msaa(&device, &config, "msaa_color", MSAA_SAMPLES);
 
         let last_frame_instant = Instant::now();
@@ -127,7 +136,9 @@ impl Renderer {
             camera_buffer,
             camera_bind_group,
             depth_texture,
+            #[cfg(not(target_arch = "wasm32"))]
             msaa_texture,
+            #[cfg(not(target_arch = "wasm32"))]
             msaa_view,
             grid_pipeline,
             egui_renderer,
@@ -142,8 +153,11 @@ impl Renderer {
             "depth_texture",
             MSAA_SAMPLES,
         );
-        (self.msaa_texture, self.msaa_view) =
-            create_msaa(&self.device, &self.config, "msaa_color", MSAA_SAMPLES);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            (self.msaa_texture, self.msaa_view) =
+                create_msaa(&self.device, &self.config, "msaa_color", MSAA_SAMPLES);
+        }
     }
 
     pub fn render(&mut self, window: std::sync::Arc<winit::window::Window>) -> anyhow::Result<()> {
@@ -182,16 +196,28 @@ impl Renderer {
                 label: Some("Render Encoder"),
             });
 
+        let use_view: &TextureView;
+        let resolve_target: Option<&TextureView>;
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if MSAA_SAMPLES > 1 {
+            use_view = &self.msaa_view;
+            resolve_target = Some(&view);
+        } else {
+            use_view = &view;
+            resolve_target = None;
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            use_view = &view;
+            resolve_target = None;
+        }
+
         GridPass {
             camera_bind_group: &self.camera_bind_group,
             depth_texture_view: &self.depth_texture.view,
         }
-        .render_pass(
-            &mut encoder,
-            &self.msaa_view,
-            Some(&view),
-            &self.grid_pipeline,
-        );
+        .render_pass(&mut encoder, use_view, resolve_target, &self.grid_pipeline);
 
         {
             // Whole egui loop right here

@@ -1,8 +1,7 @@
-Render the grid at the origin
-Render the axis marker at the origin
+Let's get down to business
 
 KEEP TESTING WASM!!!!
 `wasm-pack build --target web --dev`
 Always keep testing wasm
-
-Then we can be welcomed to the domain of numbers (get it?)
+WASM Fixes that I can't work out:
+- Why is the window forced to a square aspect?
