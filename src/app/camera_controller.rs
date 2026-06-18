@@ -85,22 +85,22 @@ impl CameraController {
         }
     }
 
-    pub fn update_camera(&mut self, camera: &mut Camera) {
+    pub fn update_camera(&mut self, camera: &mut Camera, delta_time: f64) {
         if self.is_forward_pressed {
-            camera.position += camera.forward() * self.speed as f64;
+            camera.position += camera.forward() * self.speed as f64 * delta_time;
         }
         if self.is_backward_pressed {
-            camera.position -= camera.forward() * self.speed as f64;
+            camera.position -= camera.forward() * self.speed as f64 * delta_time;
         }
         if self.is_right_pressed {
-            camera.position += camera.right() * self.speed as f64;
+            camera.position += camera.right() * self.speed as f64 * delta_time;
         }
         if self.is_left_pressed {
-            camera.position -= camera.right() * self.speed as f64;
+            camera.position -= camera.right() * self.speed as f64 * delta_time;
         }
 
-        let yaw_angle = self.delta.0 * self.sensitivity;
-        let pitch_angle = self.delta.1 * self.sensitivity;
+        let yaw_angle = self.delta.0 * self.sensitivity * delta_time;
+        let pitch_angle = self.delta.1 * self.sensitivity * delta_time;
 
         let q_yaw = DQuat::from_axis_angle(DVec3::Y, -yaw_angle);
         let q_pitch = DQuat::from_axis_angle(DVec3::X, -pitch_angle);

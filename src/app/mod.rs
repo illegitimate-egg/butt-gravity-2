@@ -103,7 +103,7 @@ impl State {
                
         Ok(Self {
             renderer: Renderer::new(surface, device, queue, config, egui_renderer, egui_state),
-            camera_controller: CameraController::new(0.05, 0.002),
+            camera_controller: CameraController::new(1.0, 0.02),
             pending_resize: None,
             #[cfg(not(target_arch = "wasm32"))]
             is_surface_configured: true, // Buttily needed for x11
@@ -121,7 +121,7 @@ impl State {
     }
 
     fn update(&mut self) {
-        self.camera_controller.update_camera(&mut self.renderer.camera);
+        self.camera_controller.update_camera(&mut self.renderer.camera, self.renderer.delta_time as f64);
         self.renderer.update_camera();
     }
 
