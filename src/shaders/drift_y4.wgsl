@@ -24,7 +24,7 @@ fn cs_main(
     @builtin(global_invocation_id) global_invocation_id: vec3<u32>
 ) {
     let body_id = global_invocation_id.x;
-    if (body_id > parameters.body_count) {
+    if (body_id >= parameters.body_count) {
         return;
     }
 

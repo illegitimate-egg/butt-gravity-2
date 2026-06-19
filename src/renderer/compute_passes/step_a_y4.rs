@@ -225,7 +225,11 @@ impl Y4AccelerationStep {
             params_copy.dt = (self.sim_params.dt * coeff) / 2.0;
             queue.write_buffer(&self.sim_params_buffer, 0, bytemuck::bytes_of(&params_copy));
             self.run_kick(encoder);
+            params_copy.dt = self.sim_params.dt * coeff;
+            queue.write_buffer(&self.sim_params_buffer, 0, bytemuck::bytes_of(&params_copy));
             self.run_drift(encoder);
+            params_copy.dt = (self.sim_params.dt * coeff) / 2.0;
+            queue.write_buffer(&self.sim_params_buffer, 0, bytemuck::bytes_of(&params_copy));
             self.run_kick(encoder);
         }
     }
@@ -233,7 +237,7 @@ impl Y4AccelerationStep {
 
 // GPU Types
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct BodyState {
     // X, Y, Z, Radius
     pub position_radius: [f32; 4],

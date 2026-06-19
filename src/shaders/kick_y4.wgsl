@@ -24,9 +24,11 @@ fn cs_main(
     @builtin(global_invocation_id) global_invocation_id: vec3<u32>
 ) {
     let body_id = global_invocation_id.x;
-    if (body_id > parameters.body_count) {
+    if (body_id >= parameters.body_count) {
         return;
     }
+
+    let primary = input_buffer[body_id];
 
     var acceleration = vec3<f32>(0.0);
     for (var j: u32 = 0u; j < parameters.body_count; j++) {
@@ -36,8 +38,9 @@ fn cs_main(
 
         let secondary = input_buffer[j];
 
-        let r = secondary.position_radius.xyz - input_buffer[body_id].position_radius.xyz;
-        let dist_sq = dot(r, r) + parameters.softening;
+        let eps2 = parameters.softening * parameters.softening;
+        let r = secondary.position_radius.xyz - primary.position_radius.xyz;
+        let dist_sq = dot(r, r) + eps2;
 
         let inv_dist = inverseSqrt(dist_sq);
         let inv_dist_3 = inv_dist * inv_dist * inv_dist;

@@ -195,18 +195,18 @@ impl Renderer {
             &device,
             vec![
                 BodyState {
-                    position_radius: [0.9700436, 1.0, -0.24308753, 0.1],
-                    velocity_mass: [0.4662037, 0.0, 0.43236573, 1.498e10],
+                    position_radius: [0.9700436, -0.24308753, 0.0, 0.1],
+                    velocity_mass: [0.4662037, 0.43236573, 0.0, 1.498e10],
                     color: [1.0, 0.0, 0.0, 1.0],
                 },
                 BodyState {
-                    position_radius: [-0.9700436, -2.0, 0.24308753, 0.1],
-                    velocity_mass: [0.4662037, 0.0, 0.43236573, 1.498e10],
+                    position_radius: [-0.9700436, 0.24308753, 0.0, 0.1],
+                    velocity_mass: [0.4662037, 0.43236573, 0.0, 1.498e10],
                     color: [0.0, 1.0, 0.0, 1.0],
                 },
                 BodyState {
-                    position_radius: [0.0, 1.0, 0.0, 0.1],
-                    velocity_mass: [-2.0 * 0.4662037, 0.0, -2.0 * 0.43236573, 1.498e10],
+                    position_radius: [0.0, 0.0, 0.0, 0.1],
+                    velocity_mass: [-2.0 * 0.4662037, -2.0 * 0.43236573, 0.0, 1.498e10],
                     color: [0.0, 0.0, 1.0, 1.0],
                 },
             ],
