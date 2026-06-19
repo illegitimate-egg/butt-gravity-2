@@ -11,6 +11,11 @@ struct SimParams {
     _pad: u32
 }
 
+struct Immediates {
+    effective_dt: f32,
+}
+var<immediate> c: Immediates;
+
 @group(0) @binding(0) var<storage, read> input_buffer: array<BodyState>;
 @group(0) @binding(1) var<storage, read_write> output_buffer: array<BodyState>;
 @group(0) @binding(2) var<uniform> parameters: SimParams;
@@ -29,8 +34,8 @@ fn cs_main(
     }
 
     output_buffer[body_id] = input_buffer[body_id];
-    output_buffer[body_id].position_radius.x += input_buffer[body_id].velocity_mass.x * parameters.dt;
-    output_buffer[body_id].position_radius.y += input_buffer[body_id].velocity_mass.y * parameters.dt;
-    output_buffer[body_id].position_radius.z += input_buffer[body_id].velocity_mass.z * parameters.dt;
+    output_buffer[body_id].position_radius.x += input_buffer[body_id].velocity_mass.x * c.effective_dt;
+    output_buffer[body_id].position_radius.y += input_buffer[body_id].velocity_mass.y * c.effective_dt;
+    output_buffer[body_id].position_radius.z += input_buffer[body_id].velocity_mass.z * c.effective_dt;
 }
 

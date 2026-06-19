@@ -139,7 +139,7 @@ impl Y4AccelerationStep {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("y4 Acceleration Pipeline Layout"),
                 bind_group_layouts: &[Some(&compute_layout)],
-                immediate_size: 0,
+                immediate_size: 4,
             });
 
         let kick_compute_pipeline =
@@ -175,7 +175,7 @@ impl Y4AccelerationStep {
         }
     }
 
-    pub fn run_kick(&mut self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn run_kick(&mut self, encoder: &mut wgpu::CommandEncoder, dt: f32) {
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("y4 Acceleration Compute Kick Pass"),
             timestamp_writes: None,
@@ -189,13 +189,14 @@ impl Y4AccelerationStep {
         self.swap_buffers = !self.swap_buffers;
 
         pass.set_pipeline(&self.kick_compute_pipeline);
+        pass.set_immediates(0, bytemuck::bytes_of(&dt));
         pass.dispatch_workgroups(
             ((self.sim_params.body_count as f32) / (BODIES_PER_GROUP as f32)).ceil() as u32,
             1,
             1,
         );
     }
-    pub fn run_drift(&mut self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn run_drift(&mut self, encoder: &mut wgpu::CommandEncoder, dt: f32) {
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("y4 Acceleration Compute Drift Pass"),
             timestamp_writes: None,
@@ -209,6 +210,7 @@ impl Y4AccelerationStep {
         self.swap_buffers = !self.swap_buffers;
 
         pass.set_pipeline(&self.drift_compute_pipeline);
+        pass.set_immediates(0, bytemuck::bytes_of(&dt));
         pass.dispatch_workgroups(
             ((self.sim_params.body_count as f32) / (BODIES_PER_GROUP as f32)).ceil() as u32,
             1,
@@ -216,21 +218,17 @@ impl Y4AccelerationStep {
         );
     }
 
-    pub fn step_simulation(&mut self, encoder: &mut wgpu::CommandEncoder, queue: &wgpu::Queue) {
-        let step_coeffs: [f32; 3] = [W1, W0, W1];
-
-        let mut params_copy = self.sim_params;
+    pub fn step_simulation(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        let step_coeffs: [f32; 3] = [
+            self.sim_params.dt * W1,
+            self.sim_params.dt * W0,
+            self.sim_params.dt * W1,
+        ];
 
         for coeff in step_coeffs {
-            params_copy.dt = (self.sim_params.dt * coeff) / 2.0;
-            queue.write_buffer(&self.sim_params_buffer, 0, bytemuck::bytes_of(&params_copy));
-            self.run_kick(encoder);
-            params_copy.dt = self.sim_params.dt * coeff;
-            queue.write_buffer(&self.sim_params_buffer, 0, bytemuck::bytes_of(&params_copy));
-            self.run_drift(encoder);
-            params_copy.dt = (self.sim_params.dt * coeff) / 2.0;
-            queue.write_buffer(&self.sim_params_buffer, 0, bytemuck::bytes_of(&params_copy));
-            self.run_kick(encoder);
+            self.run_kick(encoder, coeff / 2.0);
+            self.run_drift(encoder, coeff);
+            self.run_kick(encoder, coeff / 2.0);
         }
     }
 }

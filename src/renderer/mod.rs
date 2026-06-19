@@ -1,3 +1,4 @@
+use egui::DragValue;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
@@ -12,6 +13,7 @@ use wgpu::{util::DeviceExt, TextureView};
 use crate::app::CANVAS_ID;
 
 use crate::renderer::compute_passes::step_a_y4::{BodyState, Y4AccelerationStep};
+use crate::renderer::phys_state::PhysState;
 use crate::renderer::pipelines::body_draw_pipeline::BodyDrawPipeline;
 use crate::renderer::render_passes::body_draw_pass::BodyDrawPass;
 use crate::renderer::render_passes::egui_pass::EguiPass;
@@ -24,6 +26,7 @@ use crate::renderer::{
 
 pub mod camera;
 mod compute_passes;
+mod phys_state;
 mod pipelines;
 mod render_passes;
 pub mod texture;
@@ -61,6 +64,7 @@ pub struct Renderer {
     max_view_dimensions: (u32, u32),
 
     simulator: Y4AccelerationStep,
+    phys_state: PhysState,
 
     grid_pipeline: wgpu::RenderPipeline,
     body_draw_pipeline: wgpu::RenderPipeline,
@@ -212,6 +216,9 @@ impl Renderer {
             ],
         );
 
+        let mut phys_state = PhysState::new();
+        phys_state.traversal_modifier = 0.00;
+
         // Build pipelines
         let grid_pipeline = GridPipeline {
             camera_bind_group_layout: &camera_bind_group_layout,
@@ -241,6 +248,7 @@ impl Renderer {
             msaa_view,
             max_view_dimensions,
             simulator,
+            phys_state,
             grid_pipeline,
             body_draw_pipeline,
             egui_renderer,
@@ -321,7 +329,10 @@ impl Renderer {
         }
         .render_pass(&mut encoder, use_view, resolve_target, &self.grid_pipeline);
 
-        self.simulator.step_simulation(&mut encoder, &self.queue);
+        self.phys_state
+            .cycle(self.delta_time, self.simulator.sim_params.dt, || {
+                self.simulator.step_simulation(&mut encoder);
+            });
 
         let body_bind_group = if !self.simulator.swap_buffers {
             &self.simulator.ab_bind_group
@@ -353,37 +364,45 @@ impl Renderer {
             egui_pass.begin_ui();
 
             // Ui
-            // egui::Window::new("Camera information")
-            //     .resizable(true)
-            //     .vscroll(true)
-            //     .show(egui_pass.get_ctx(), |ui| {
-            //         ui.label(format!(
-            //             "Delta Time: {}   Frame Time: {}   FPS: {}",
-            //             self.delta_time,
-            //             self.last_frame_time,
-            //             self.delta_time.recip()
-            //         ));
-            //         ui.label("Position (XYZ)");
-            //         ui.columns(3, |ui| {
-            //             ui[0].add(egui::DragValue::new(&mut self.camera.position.x));
-            //             ui[1].add(egui::DragValue::new(&mut self.camera.position.y));
-            //             ui[2].add(egui::DragValue::new(&mut self.camera.position.z));
-            //         });
-            //         ui.label("QRot (XYZW)");
-            //         ui.columns(4, |ui| {
-            //             ui[0].add(egui::DragValue::new(&mut self.camera.orientation.x));
-            //             ui[1].add(egui::DragValue::new(&mut self.camera.orientation.y));
-            //             ui[2].add(egui::DragValue::new(&mut self.camera.orientation.z));
-            //             ui[3].add(egui::DragValue::new(&mut self.camera.orientation.w));
-            //         });
-            //         let euler_camera = self.camera.orientation.to_euler(glam::EulerRot::XYZ);
-            //         ui.label("ERot (XYZ)");
-            //         ui.columns(3, |ui| {
-            //             ui[0].drag_angle(&mut (euler_camera.0 as f32));
-            //             ui[1].drag_angle(&mut (euler_camera.1 as f32));
-            //             ui[2].drag_angle(&mut (euler_camera.2 as f32));
-            //         });
-            //     });
+            egui::Window::new("Camera information")
+                .resizable(true)
+                .vscroll(true)
+                .show(egui_pass.get_ctx(), |ui| {
+                    ui.label(format!(
+                        "Delta Time: {}\nFrame Time: {}\nFPS: {}\nEngine Debt: {}",
+                        self.delta_time,
+                        self.last_frame_time,
+                        self.delta_time.recip(),
+                        self.phys_state.get_debt(),
+                    ));
+                    ui.label("Position (XYZ)");
+                    ui.columns(3, |ui| {
+                        ui[0].add(egui::DragValue::new(&mut self.camera.position.x));
+                        ui[1].add(egui::DragValue::new(&mut self.camera.position.y));
+                        ui[2].add(egui::DragValue::new(&mut self.camera.position.z));
+                    });
+                    ui.label("QRot (XYZW)");
+                    ui.columns(4, |ui| {
+                        ui[0].add(egui::DragValue::new(&mut self.camera.orientation.x));
+                        ui[1].add(egui::DragValue::new(&mut self.camera.orientation.y));
+                        ui[2].add(egui::DragValue::new(&mut self.camera.orientation.z));
+                        ui[3].add(egui::DragValue::new(&mut self.camera.orientation.w));
+                    });
+                    let euler_camera = self.camera.orientation.to_euler(glam::EulerRot::XYZ);
+                    ui.label("ERot (XYZ)");
+                    ui.columns(3, |ui| {
+                        ui[0].drag_angle(&mut (euler_camera.0 as f32));
+                        ui[1].drag_angle(&mut (euler_camera.1 as f32));
+                        ui[2].drag_angle(&mut (euler_camera.2 as f32));
+                    });
+                    ui.label("Time modifier:");
+                    ui.add(
+                        DragValue::new(&mut self.phys_state.traversal_modifier)
+                            .speed(0.01)
+                            .suffix("x")
+                            .range(0.0..=f32::MAX),
+                    );
+                });
 
             // Post-ui
             egui_pass.end_ui(&mut encoder, &view, &self.device, &self.queue, &self.config);

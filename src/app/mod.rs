@@ -1,4 +1,3 @@
-use core::time;
 use std::sync::Arc;
 
 use log::{info, warn};
@@ -63,13 +62,19 @@ impl State {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
+                required_features: wgpu::Features::IMMEDIATES,
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 // Wasm is such a pain in the arse, it does't support all of wgpu's features so we have to knock some off
                 required_limits: if cfg!(target_arch = "wasm32") && adapter_info.backend == wgpu::Backend::Gl {
-                    wgpu::Limits::downlevel_webgl2_defaults()
+                    wgpu::Limits {
+                        max_immediate_size: 4,
+                        ..wgpu::Limits::downlevel_webgl2_defaults()
+                    }
                 } else {
-                    wgpu::Limits::defaults().using_resolution(adapter.limits())
+                    wgpu::Limits {
+                        max_immediate_size: 4,
+                        ..wgpu::Limits::defaults().using_resolution(adapter.limits())
+                    }
                 },
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
