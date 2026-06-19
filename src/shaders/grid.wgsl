@@ -108,5 +108,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             max(x_axis_alpha, z_axis_alpha)
         ) * fade;
 
+    if (alpha <= 0.0) {
+        discard;
+    }
+
     return vec4<f32>(colour, alpha);
 }
