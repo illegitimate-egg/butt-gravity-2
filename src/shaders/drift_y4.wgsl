@@ -7,12 +7,15 @@ struct BodyState {
 struct SimParams {
     dt: f32,
     body_count: u32,
-    _pad: vec2<u32>
+    softening: f32,
+    _pad: u32
 }
 
 @group(0) @binding(0) var<storage, read> input_buffer: array<BodyState>;
 @group(0) @binding(1) var<storage, read_write> output_buffer: array<BodyState>;
 @group(0) @binding(2) var<uniform> parameters: SimParams;
+
+const G: f32 = 6.67430e-11;
 
 @compute
 // Should correlate with BODIES_PER_GROUP in render pass
@@ -26,5 +29,8 @@ fn cs_main(
     }
 
     output_buffer[body_id] = input_buffer[body_id];
-    output_buffer[body_id].position_radius.x += 0.001;
+    output_buffer[body_id].position_radius.x += input_buffer[body_id].velocity_mass.x * parameters.dt;
+    output_buffer[body_id].position_radius.y += input_buffer[body_id].velocity_mass.y * parameters.dt;
+    output_buffer[body_id].position_radius.z += input_buffer[body_id].velocity_mass.z * parameters.dt;
 }
+

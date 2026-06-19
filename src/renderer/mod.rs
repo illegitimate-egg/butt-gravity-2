@@ -147,7 +147,7 @@ impl Renderer {
         let delta_time = 0.0;
 
         let camera = Camera {
-            position: (0.0, 1.0, 0.0).into(),
+            position: (1.0, 1.0, 1.0).into(),
             orientation: DQuat::IDENTITY,
             fov_y: 90.0_f64.to_radians(),
             near_plane: 0.1,
@@ -195,14 +195,19 @@ impl Renderer {
             &device,
             vec![
                 BodyState {
-                    position_radius: [0.0, 1.0, 0.0, 0.5],
-                    velocity_mass: [0.0, 0.0, 0.0, 1.0],
-                    color: [1.0, 1.0, 1.0, 1.0],
+                    position_radius: [0.9700436, 1.0, -0.24308753, 0.1],
+                    velocity_mass: [0.4662037, 0.0, 0.43236573, 1.498e10],
+                    color: [1.0, 0.0, 0.0, 1.0],
                 },
                 BodyState {
-                    position_radius: [1.0, 1.0, 0.0, 0.5],
-                    velocity_mass: [0.0, 0.0, 0.0, 1.0],
-                    color: [1.0, 1.0, 1.0, 1.0],
+                    position_radius: [-0.9700436, -2.0, 0.24308753, 0.1],
+                    velocity_mass: [0.4662037, 0.0, 0.43236573, 1.498e10],
+                    color: [0.0, 1.0, 0.0, 1.0],
+                },
+                BodyState {
+                    position_radius: [0.0, 1.0, 0.0, 0.1],
+                    velocity_mass: [-2.0 * 0.4662037, 0.0, -2.0 * 0.43236573, 1.498e10],
+                    color: [0.0, 0.0, 1.0, 1.0],
                 },
             ],
         );
@@ -316,7 +321,7 @@ impl Renderer {
         }
         .render_pass(&mut encoder, use_view, resolve_target, &self.grid_pipeline);
 
-        self.simulator.run(&mut encoder);
+        self.simulator.step_simulation(&mut encoder, &self.queue);
 
         let body_bind_group = if !self.simulator.swap_buffers {
             &self.simulator.ab_bind_group
@@ -348,37 +353,37 @@ impl Renderer {
             egui_pass.begin_ui();
 
             // Ui
-            egui::Window::new("Camera information")
-                .resizable(true)
-                .vscroll(true)
-                .show(egui_pass.get_ctx(), |ui| {
-                    ui.label(format!(
-                        "Delta Time: {}   Frame Time: {}   FPS: {}",
-                        self.delta_time,
-                        self.last_frame_time,
-                        self.delta_time.recip()
-                    ));
-                    ui.label("Position (XYZ)");
-                    ui.columns(3, |ui| {
-                        ui[0].add(egui::DragValue::new(&mut self.camera.position.x));
-                        ui[1].add(egui::DragValue::new(&mut self.camera.position.y));
-                        ui[2].add(egui::DragValue::new(&mut self.camera.position.z));
-                    });
-                    ui.label("QRot (XYZW)");
-                    ui.columns(4, |ui| {
-                        ui[0].add(egui::DragValue::new(&mut self.camera.orientation.x));
-                        ui[1].add(egui::DragValue::new(&mut self.camera.orientation.y));
-                        ui[2].add(egui::DragValue::new(&mut self.camera.orientation.z));
-                        ui[3].add(egui::DragValue::new(&mut self.camera.orientation.w));
-                    });
-                    let euler_camera = self.camera.orientation.to_euler(glam::EulerRot::XYZ);
-                    ui.label("ERot (XYZ)");
-                    ui.columns(3, |ui| {
-                        ui[0].drag_angle(&mut (euler_camera.0 as f32));
-                        ui[1].drag_angle(&mut (euler_camera.1 as f32));
-                        ui[2].drag_angle(&mut (euler_camera.2 as f32));
-                    });
-                });
+            // egui::Window::new("Camera information")
+            //     .resizable(true)
+            //     .vscroll(true)
+            //     .show(egui_pass.get_ctx(), |ui| {
+            //         ui.label(format!(
+            //             "Delta Time: {}   Frame Time: {}   FPS: {}",
+            //             self.delta_time,
+            //             self.last_frame_time,
+            //             self.delta_time.recip()
+            //         ));
+            //         ui.label("Position (XYZ)");
+            //         ui.columns(3, |ui| {
+            //             ui[0].add(egui::DragValue::new(&mut self.camera.position.x));
+            //             ui[1].add(egui::DragValue::new(&mut self.camera.position.y));
+            //             ui[2].add(egui::DragValue::new(&mut self.camera.position.z));
+            //         });
+            //         ui.label("QRot (XYZW)");
+            //         ui.columns(4, |ui| {
+            //             ui[0].add(egui::DragValue::new(&mut self.camera.orientation.x));
+            //             ui[1].add(egui::DragValue::new(&mut self.camera.orientation.y));
+            //             ui[2].add(egui::DragValue::new(&mut self.camera.orientation.z));
+            //             ui[3].add(egui::DragValue::new(&mut self.camera.orientation.w));
+            //         });
+            //         let euler_camera = self.camera.orientation.to_euler(glam::EulerRot::XYZ);
+            //         ui.label("ERot (XYZ)");
+            //         ui.columns(3, |ui| {
+            //             ui[0].drag_angle(&mut (euler_camera.0 as f32));
+            //             ui[1].drag_angle(&mut (euler_camera.1 as f32));
+            //             ui[2].drag_angle(&mut (euler_camera.2 as f32));
+            //         });
+            //     });
 
             // Post-ui
             egui_pass.end_ui(&mut encoder, &view, &self.device, &self.queue, &self.config);
