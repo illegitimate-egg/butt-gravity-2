@@ -11,6 +11,9 @@ use wgpu::{util::DeviceExt, TextureView};
 #[cfg(target_arch = "wasm32")]
 use crate::app::CANVAS_ID;
 
+use crate::renderer::compute_passes::step_a_y4::{BodyState, Y4AccelerationStep};
+use crate::renderer::pipelines::body_draw_pipeline::BodyDrawPipeline;
+use crate::renderer::render_passes::body_draw_pass::BodyDrawPass;
 use crate::renderer::render_passes::egui_pass::EguiPass;
 use crate::renderer::{
     camera::{Camera, CameraUniform},
@@ -20,6 +23,7 @@ use crate::renderer::{
 };
 
 pub mod camera;
+mod compute_passes;
 mod pipelines;
 mod render_passes;
 pub mod texture;
@@ -56,8 +60,11 @@ pub struct Renderer {
 
     max_view_dimensions: (u32, u32),
 
+    simulator: Y4AccelerationStep,
+
     grid_pipeline: wgpu::RenderPipeline,
-    // line_pipeline: wgpu::RenderPipeline,
+    body_draw_pipeline: wgpu::RenderPipeline,
+
     pub egui_renderer: egui_wgpu::Renderer,
     pub egui_state: egui_winit::State,
 }
@@ -184,9 +191,31 @@ impl Renderer {
             label: Some("camera_bind_group"),
         });
 
+        let simulator = Y4AccelerationStep::new(
+            &device,
+            vec![
+                BodyState {
+                    position_radius: [0.0, 1.0, 0.0, 0.5],
+                    velocity_mass: [0.0, 0.0, 0.0, 1.0],
+                    color: [1.0, 1.0, 1.0, 1.0],
+                },
+                BodyState {
+                    position_radius: [1.0, 1.0, 0.0, 0.5],
+                    velocity_mass: [0.0, 0.0, 0.0, 1.0],
+                    color: [1.0, 1.0, 1.0, 1.0],
+                },
+            ],
+        );
+
         // Build pipelines
         let grid_pipeline = GridPipeline {
-            camera_bind_group_layout,
+            camera_bind_group_layout: &camera_bind_group_layout,
+        }
+        .create_pipeline(&device, &config);
+
+        let body_draw_pipeline = BodyDrawPipeline {
+            bodies_bind_group_layout: &simulator.compute_layout,
+            camera_bind_group_layout: &camera_bind_group_layout,
         }
         .create_pipeline(&device, &config);
 
@@ -206,7 +235,9 @@ impl Renderer {
             msaa_texture,
             msaa_view,
             max_view_dimensions,
+            simulator,
             grid_pipeline,
+            body_draw_pipeline,
             egui_renderer,
             egui_state,
         }
@@ -284,6 +315,27 @@ impl Renderer {
             depth_texture_view: &self.depth_texture.view,
         }
         .render_pass(&mut encoder, use_view, resolve_target, &self.grid_pipeline);
+
+        self.simulator.run(&mut encoder);
+
+        let body_bind_group = if !self.simulator.swap_buffers {
+            &self.simulator.ab_bind_group
+        } else {
+            &self.simulator.ba_bind_group
+        };
+
+        BodyDrawPass {
+            bodies_bind_group: body_bind_group,
+            camera_bind_group: &self.camera_bind_group,
+            depth_texture_view: &self.depth_texture.view,
+            body_count: self.simulator.sim_params.body_count,
+        }
+        .render_pass(
+            &mut encoder,
+            use_view,
+            resolve_target,
+            &self.body_draw_pipeline,
+        );
 
         {
             // Whole egui loop right here

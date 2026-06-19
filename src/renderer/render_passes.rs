@@ -1,5 +1,6 @@
 use wgpu::{CommandEncoder, RenderPipeline, TextureView};
 
+pub mod body_draw_pass;
 pub mod egui_pass;
 pub mod grid_pass;
 

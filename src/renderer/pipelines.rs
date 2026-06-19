@@ -1,5 +1,6 @@
 use wgpu::RenderPipeline;
 
+pub mod body_draw_pipeline;
 pub mod grid_pipeline;
 
 pub trait Pipeline {

@@ -3,26 +3,31 @@ use wgpu::BindGroupLayout;
 
 use crate::renderer::{pipelines::Pipeline, texture};
 
-pub struct GridPipeline<'a> {
+pub struct BodyDrawPipeline<'a> {
+    pub bodies_bind_group_layout: &'a BindGroupLayout,
     pub camera_bind_group_layout: &'a BindGroupLayout,
 }
 
-impl Pipeline for GridPipeline<'_> {
+impl Pipeline for BodyDrawPipeline<'_> {
     fn create_pipeline(
         &self,
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
     ) -> wgpu::RenderPipeline {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("../../shaders/grid.wgsl"));
+        let shader =
+            device.create_shader_module(wgpu::include_wgsl!("../../shaders/body_draw_pass.wgsl"));
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Grid Pipeline Layout"),
-            bind_group_layouts: &[Some(self.camera_bind_group_layout)],
+            label: Some("Body Draw Pipeline Layout"),
+            bind_group_layouts: &[
+                Some(self.bodies_bind_group_layout),
+                Some(self.camera_bind_group_layout),
+            ],
             immediate_size: 0,
         });
 
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Grid Pipeline"),
+            label: Some("Body Draw Pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
