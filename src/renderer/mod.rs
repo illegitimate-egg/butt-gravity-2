@@ -329,12 +329,11 @@ impl Renderer {
         }
         .render_pass(&mut encoder, use_view, resolve_target, &self.grid_pipeline);
 
-        // self.simulator.step_simulation(
-        //     &mut encoder,
-        //     self.phys_state
-        //         .get_cycle_target(self.delta_time, self.simulator.sim_params.dt),
-        // );
-        self.simulator.step_simulation(&mut encoder, 1);
+        self.simulator.step_simulation(
+            &mut encoder,
+            self.phys_state
+                .get_cycle_target(self.delta_time, self.simulator.sim_params.dt),
+        );
 
         let body_bind_group = if !self.simulator.swap_buffers {
             &self.simulator.ab_bind_group

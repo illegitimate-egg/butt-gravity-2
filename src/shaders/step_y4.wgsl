@@ -21,21 +21,28 @@ var<immediate> c: Immediates;
 @group(0) @binding(1) var<storage, read_write> output_buffer: array<BodyState>;
 @group(0) @binding(2) var<uniform> params: SimParams;
 
-var<workgroup> shared_positions: array<vec3<f32>, 64>;
+/// XYZ: Position, W: Mass
+var<workgroup> shared_positions: array<vec4<f32>, 64>;
 
-fn calculate_force(position: vec3<f32>) -> vec3<f32> {
+const G: f32 = 6.67430e-11;
+
+fn calculate_acceleration(position: vec3<f32>, p_index: u32) -> vec3<f32> {
     var acc = vec3<f32>(0.0);
     for (var i = 0u; i < params.body_count; i++) {
-        let secondary_position = shared_positions[i];
-        
-        if all(secondary_position.xyz == position.xyz) {
+        if (p_index == i) {
             continue;
         }
+
+        let secondary = shared_positions[i];
+
+        // softening_sq = eps2
+        let r = secondary.xyz - position;
+        let dist_sq = dot(r, r) + params.softening_sq;
+
+        let inv_dist = inverseSqrt(dist_sq);
+        let inv_dist_3 = inv_dist * inv_dist * inv_dist;
         
-        let direction = secondary_position - position;
-        let dist_sq = dot(direction, direction) + params.softening_sq;
-        
-        acc += direction * (1.0 / (dist_sq * sqrt(dist_sq)));
+        acc += G * secondary.w * r * inv_dist_3;
     }
 
     return acc;
@@ -58,24 +65,36 @@ fn main(@builtin(local_invocation_index) local_id: u32) {
 
     var dv = vec3<f32>(0.0);
 
-    // for (var step = 0u; step < total_steps; step++) {
+    for (var step = 0u; step < total_steps; step++) {
         // Triplet 1 using W1
         if should_run {
-            shared_positions[local_id] = p.position_radius.xyz;
+            shared_positions[local_id].x = p.position_radius.x;
+            shared_positions[local_id].y = p.position_radius.y;
+            shared_positions[local_id].z = p.position_radius.z;
+            shared_positions[local_id].w = p.velocity_mass.w;
         } 
         workgroupBarrier();
         if should_run {
-            dv = calculate_force(p.position_radius.xyz) * w_1;
+            // K
+            dv = calculate_acceleration(p.position_radius.xyz, local_id) * w_1 / 2.0;
             p.velocity_mass.x += dv.x;
             p.velocity_mass.y += dv.y;
             p.velocity_mass.z += dv.z;
+            // D
             p.position_radius.x += p.velocity_mass.x * w_1;
             p.position_radius.y += p.velocity_mass.y * w_1;
             p.position_radius.z += p.velocity_mass.z * w_1;
         }
+        if should_run {
+            shared_positions[local_id].x = p.position_radius.x;
+            shared_positions[local_id].y = p.position_radius.y;
+            shared_positions[local_id].z = p.position_radius.z;
+            shared_positions[local_id].w = p.velocity_mass.w;
+        } 
         workgroupBarrier();
         if should_run {
-            dv = calculate_force(p.position_radius.xyz) * w_1;
+            // K
+            dv = calculate_acceleration(p.position_radius.xyz, local_id) * w_1 / 2.0;
             p.velocity_mass.x += dv.x;
             p.velocity_mass.y += dv.y;
             p.velocity_mass.z += dv.z;
@@ -83,11 +102,14 @@ fn main(@builtin(local_invocation_index) local_id: u32) {
         
         // Triplet 2 using W0
         if should_run {
-            shared_positions[local_id] = p.position_radius.xyz;
+            shared_positions[local_id].x = p.position_radius.x;
+            shared_positions[local_id].y = p.position_radius.y;
+            shared_positions[local_id].z = p.position_radius.z;
+            shared_positions[local_id].w = p.velocity_mass.w;
         } 
         workgroupBarrier();
         if should_run {
-            dv = calculate_force(p.position_radius.xyz) * w_0;
+            dv = calculate_acceleration(p.position_radius.xyz, local_id) * w_0 / 2.0;
             p.velocity_mass.x += dv.x;
             p.velocity_mass.y += dv.y;
             p.velocity_mass.z += dv.z;
@@ -95,9 +117,15 @@ fn main(@builtin(local_invocation_index) local_id: u32) {
             p.position_radius.y += p.velocity_mass.y * w_0;
             p.position_radius.z += p.velocity_mass.z * w_0;
         }
+        if should_run {
+            shared_positions[local_id].x = p.position_radius.x;
+            shared_positions[local_id].y = p.position_radius.y;
+            shared_positions[local_id].z = p.position_radius.z;
+            shared_positions[local_id].w = p.velocity_mass.w;
+        } 
         workgroupBarrier();
         if should_run {
-            dv = calculate_force(p.position_radius.xyz) * w_0;
+            dv = calculate_acceleration(p.position_radius.xyz, local_id) * w_0 / 2.0;
             p.velocity_mass.x += dv.x;
             p.velocity_mass.y += dv.y;
             p.velocity_mass.z += dv.z;
@@ -105,11 +133,14 @@ fn main(@builtin(local_invocation_index) local_id: u32) {
 
         // Triplet 3 using W1
         if should_run {
-            shared_positions[local_id] = p.position_radius.xyz;
+            shared_positions[local_id].x = p.position_radius.x;
+            shared_positions[local_id].y = p.position_radius.y;
+            shared_positions[local_id].z = p.position_radius.z;
+            shared_positions[local_id].w = p.velocity_mass.w;
         } 
         workgroupBarrier();
         if should_run {
-            dv = calculate_force(p.position_radius.xyz) * w_1;
+            dv = calculate_acceleration(p.position_radius.xyz, local_id) * w_1 / 2.0;
             p.velocity_mass.x += dv.x;
             p.velocity_mass.y += dv.y;
             p.velocity_mass.z += dv.z;
@@ -117,14 +148,20 @@ fn main(@builtin(local_invocation_index) local_id: u32) {
             p.position_radius.y += p.velocity_mass.y * w_1;
             p.position_radius.z += p.velocity_mass.z * w_1;
         }
+        if should_run {
+            shared_positions[local_id].x = p.position_radius.x;
+            shared_positions[local_id].y = p.position_radius.y;
+            shared_positions[local_id].z = p.position_radius.z;
+            shared_positions[local_id].w = p.velocity_mass.w;
+        } 
         workgroupBarrier();
         if should_run {
-            dv = calculate_force(p.position_radius.xyz) * w_1;
+            dv = calculate_acceleration(p.position_radius.xyz, local_id) * w_1 / 2.0;
             p.velocity_mass.x += dv.x;
             p.velocity_mass.y += dv.y;
             p.velocity_mass.z += dv.z;
         }
-    // }
+    }
 
     if !should_run {
         return;
