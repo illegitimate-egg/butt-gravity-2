@@ -11,8 +11,7 @@ pub struct Y4AccelerationStep {
     pub sim_params: SimParams,
     sim_params_buffer: wgpu::Buffer,
 
-    kick_compute_pipeline: wgpu::ComputePipeline,
-    drift_compute_pipeline: wgpu::ComputePipeline,
+    compute_pipeline: wgpu::ComputePipeline,
     pub compute_layout: wgpu::BindGroupLayout,
 
     /// False -> 0 -> AB
@@ -23,16 +22,10 @@ pub struct Y4AccelerationStep {
     pub ba_bind_group: wgpu::BindGroup,
 }
 
-// Neri's solutions
-const W1: f32 = 1.351_207_1;
-const W0: f32 = -1.702_414_4;
-
 impl Y4AccelerationStep {
     pub fn new(device: &wgpu::Device, initial_bodies: Vec<BodyState>) -> Self {
-        let kick_compute_shader =
-            device.create_shader_module(wgpu::include_wgsl!("../../shaders/kick_y4.wgsl"));
-        let drift_compute_shader =
-            device.create_shader_module(wgpu::include_wgsl!("../../shaders/drift_y4.wgsl"));
+        let compute_shader =
+            device.create_shader_module(wgpu::include_wgsl!("../../shaders/step_y4.wgsl"));
 
         let sim_buffer_a = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("y4 Acceleration Sim Data A"),
@@ -142,24 +135,14 @@ impl Y4AccelerationStep {
                 immediate_size: 4,
             });
 
-        let kick_compute_pipeline =
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("y4 Acceleration Pipeline"),
-                layout: Some(&compute_pipeline_layout),
-                module: &kick_compute_shader,
-                entry_point: None,
-                compilation_options: Default::default(),
-                cache: None,
-            });
-        let drift_compute_pipeline =
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("y4 Acceleration Pipeline"),
-                layout: Some(&compute_pipeline_layout),
-                module: &drift_compute_shader,
-                entry_point: None,
-                compilation_options: Default::default(),
-                cache: None,
-            });
+        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("y4 Acceleration Pipeline"),
+            layout: Some(&compute_pipeline_layout),
+            module: &compute_shader,
+            entry_point: None,
+            compilation_options: Default::default(),
+            cache: None,
+        });
 
         Self {
             sim_buffer_a,
@@ -167,17 +150,18 @@ impl Y4AccelerationStep {
             sim_params: initial_sim_params,
             sim_params_buffer,
             swap_buffers: false,
-            kick_compute_pipeline,
-            drift_compute_pipeline,
+            compute_pipeline,
             compute_layout,
             ab_bind_group,
             ba_bind_group,
         }
     }
 
-    pub fn run_kick(&mut self, encoder: &mut wgpu::CommandEncoder, dt: f32) {
+    /// encoder: A reference to the encoder to use
+    /// run_target: The number of sim steps to be run in the dispatch
+    pub fn step_simulation(&mut self, encoder: &mut wgpu::CommandEncoder, run_target: u32) {
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("y4 Acceleration Compute Kick Pass"),
+            label: Some("y4 Acceleration Compute"),
             timestamp_writes: None,
         });
 
@@ -188,48 +172,13 @@ impl Y4AccelerationStep {
         }
         self.swap_buffers = !self.swap_buffers;
 
-        pass.set_pipeline(&self.kick_compute_pipeline);
-        pass.set_immediates(0, bytemuck::bytes_of(&dt));
+        pass.set_pipeline(&self.compute_pipeline);
+        pass.set_immediates(0, bytemuck::bytes_of(&run_target));
         pass.dispatch_workgroups(
             ((self.sim_params.body_count as f32) / (BODIES_PER_GROUP as f32)).ceil() as u32,
             1,
             1,
         );
-    }
-    pub fn run_drift(&mut self, encoder: &mut wgpu::CommandEncoder, dt: f32) {
-        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("y4 Acceleration Compute Drift Pass"),
-            timestamp_writes: None,
-        });
-
-        if !self.swap_buffers {
-            pass.set_bind_group(0, &self.ab_bind_group, &[]);
-        } else {
-            pass.set_bind_group(0, &self.ba_bind_group, &[]);
-        }
-        self.swap_buffers = !self.swap_buffers;
-
-        pass.set_pipeline(&self.drift_compute_pipeline);
-        pass.set_immediates(0, bytemuck::bytes_of(&dt));
-        pass.dispatch_workgroups(
-            ((self.sim_params.body_count as f32) / (BODIES_PER_GROUP as f32)).ceil() as u32,
-            1,
-            1,
-        );
-    }
-
-    pub fn step_simulation(&mut self, encoder: &mut wgpu::CommandEncoder) {
-        let step_coeffs: [f32; 3] = [
-            self.sim_params.dt * W1,
-            self.sim_params.dt * W0,
-            self.sim_params.dt * W1,
-        ];
-
-        for coeff in step_coeffs {
-            self.run_kick(encoder, coeff / 2.0);
-            self.run_drift(encoder, coeff);
-            self.run_kick(encoder, coeff / 2.0);
-        }
     }
 }
 

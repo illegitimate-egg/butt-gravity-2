@@ -151,8 +151,8 @@ impl Renderer {
         let delta_time = 0.0;
 
         let camera = Camera {
-            position: (1.0, 1.0, 1.0).into(),
-            orientation: DQuat::IDENTITY,
+            position: (0.0, 0.0, 1.0).into(),
+            orientation: DQuat::from_vec4((0.0, 0.0, 0.0, 1.0).into()),
             fov_y: 90.0_f64.to_radians(),
             near_plane: 0.1,
             far_plane: 1e7,
@@ -329,10 +329,12 @@ impl Renderer {
         }
         .render_pass(&mut encoder, use_view, resolve_target, &self.grid_pipeline);
 
-        self.phys_state
-            .cycle(self.delta_time, self.simulator.sim_params.dt, || {
-                self.simulator.step_simulation(&mut encoder);
-            });
+        // self.simulator.step_simulation(
+        //     &mut encoder,
+        //     self.phys_state
+        //         .get_cycle_target(self.delta_time, self.simulator.sim_params.dt),
+        // );
+        self.simulator.step_simulation(&mut encoder, 1);
 
         let body_bind_group = if !self.simulator.swap_buffers {
             &self.simulator.ab_bind_group
