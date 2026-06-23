@@ -50,8 +50,9 @@ fn calculate_acceleration(position: vec3<f32>, p_index: u32) -> vec3<f32> {
 
 @compute @workgroup_size(64)
 fn main(@builtin(local_invocation_index) local_id: u32) {
-    // We get blocked at the workgroupBarrier until the end of time, or until the GPU
-    // catches onto our antics and the program terminates if we return early.
+    // If we return early, we get blocked at the wokgroupBarrier until the collapse of society,
+    // or until the GPU decides that it's had enough of our antics (blocking for
+    // several seconds).
     // if (local_id >= params.body_count) { return; }
     let should_run = local_id < params.body_count;
 
